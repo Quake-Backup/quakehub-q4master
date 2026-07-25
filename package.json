@@ -1,0 +1,17 @@
+{
+  "name": "q4master",
+  "version": "1.0.0",
+  "description": "An open-source master server for idTech4 games (Quake 4, Doom 3, Prey). Verifies every server it lists.",
+  "type": "module",
+  "main": "src/index.js",
+  "bin": { "q4master": "src/index.js" },
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test",
+    "list": "node tools/query.js"
+  },
+  "keywords": ["quake4", "idtech4", "doom3", "prey", "master-server", "game-server-browser"],
+  "license": "MIT",
+  "files": ["src", "tools", "seeds.json", "README.md", "LICENSE"]
+}

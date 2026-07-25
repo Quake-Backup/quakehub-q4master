@@ -1,0 +1,33 @@
+{
+  "_comment": "Quake 4 servers to probe on every sweep. IP:port or hostname:port (hostnames are re-resolved each sweep, for dynamic DNS). Nothing here is advertised until it answers a getInfo probe, so stale entries are harmless.",
+  "_source": "Curated from quakehub.net, which verifies every entry every 90 seconds.",
+  "_generated": "2026-07-25",
+  "servers": [
+    "arenacamper.ddns.net:28004",
+    "arenacamper2.ddns.net:28004",
+    "2.56.99.191:28004",
+    "188.40.66.105:28004",
+    "103.112.0.130:28004",
+    "188.115.185.211:28004",
+    "84.231.152.15:28004",
+    "162.248.88.45:28004",
+    "207.148.16.147:28004",
+    "74.91.114.56:28004",
+    "74.91.122.47:28004",
+    "74.91.122.47:28005",
+    "185.107.96.201:28004",
+    "138.68.21.116:28004",
+    "useast.quake4.net:28004",
+    "66.55.137.189:28104",
+    "192.169.95.163:28004",
+    "177.16.36.207:27215",
+    "193.86.149.121:28004",
+    "66.55.137.189:28004",
+    "185.170.215.121:28004",
+    "185.96.163.168:28004",
+    "185.96.163.168:28005",
+    "73.23.130.187:28004",
+    "91.227.40.112:28004",
+    "192.169.95.163:28104"
+  ]
+}
