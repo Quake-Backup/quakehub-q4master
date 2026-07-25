@@ -1,4 +1,4 @@
-# q4master
+# quakehub-q4master
 
 An open-source master server for idTech4 games: **Quake 4**, Doom 3 and Prey.
 
@@ -17,8 +17,8 @@ disappears, anyone can rebuild it from these notes.
 ## Quick start
 
 ```bash
-git clone https://github.com/booskibro/q4master
-cd q4master
+git clone https://github.com/booskibro/quakehub-q4master
+cd quakehub-q4master
 npm start
 ```
 
@@ -38,8 +38,8 @@ npm run list
 Or with Docker:
 
 ```bash
-docker build -t q4master .
-docker run -p 27650:27650/udp q4master
+docker build -t quakehub-q4master .
+docker run -p 27650:27650/udp quakehub-q4master
 ```
 
 ---
