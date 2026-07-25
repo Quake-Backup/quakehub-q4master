@@ -3,6 +3,7 @@
 //   Q4MASTER_PORT          UDP port to listen on            (default 27650)
 //   Q4MASTER_SEEDS         comma-separated addresses, overrides seeds.json entirely
 //   Q4MASTER_SEEDS_FILE    path to a JSON file like seeds.json (default ./seeds.json)
+//   Q4MASTER_SEEDS_URL     optional HTTP list, re-fetched every sweep and ADDED to the above
 //   Q4MASTER_STRICT_GAME   "1" to honour the client's fs_game filter (see below)
 //   Q4MASTER_QUIET         "1" to suppress per-request logging
 //
@@ -39,6 +40,7 @@ const quiet = process.env.Q4MASTER_QUIET === '1';
 const master = createMaster({
   port: Number(process.env.Q4MASTER_PORT) || DEFAULT_PORT,
   seeds: loadSeeds(),
+  seedsUrl: process.env.Q4MASTER_SEEDS_URL || null,
   strictGameFilter: process.env.Q4MASTER_STRICT_GAME === '1',
   log: quiet ? () => {} : console.log,
 });

@@ -265,6 +265,7 @@ All environment variables, all optional.
 | `Q4MASTER_PORT` | `27650` | UDP port to listen on |
 | `Q4MASTER_SEEDS` | - | Comma-separated addresses; overrides the seed file |
 | `Q4MASTER_SEEDS_FILE` | `./seeds.json` | Path to a seed list |
+| `Q4MASTER_SEEDS_URL` | off | HTTP list re-fetched every sweep, **added** to the above. See [Keeping the list current](#keeping-the-list-current) |
 | `Q4MASTER_STRICT_GAME` | off | Filter the reply by the client's `fs_game` |
 | `Q4MASTER_QUIET` | off | Suppress per-request logging |
 
@@ -276,6 +277,98 @@ running. This defaults to *not* doing that. Quake 4's surviving scene is about t
 mostly `q4max`, and a player who opens an empty browser concludes the game is dead and quits.
 Showing everything live is the friendlier failure. Turn it on for historically accurate
 behaviour.
+
+---
+
+## Keeping the list current
+
+By default the master probes [`seeds.json`](seeds.json), a snapshot of known Quake 4 servers.
+That file can never show you a *dead* server, because everything is probed before it is listed.
+But it can go **incomplete**: if a new server appears next month, a frozen file never learns
+about it, and you would have to edit and redeploy to pick it up.
+
+`Q4MASTER_SEEDS_URL` fixes that. Point it at any URL that returns JSON containing server
+addresses, and the master re-fetches it on every sweep.
+
+### The one-liner
+
+```bash
+Q4MASTER_SEEDS_URL="https://quakehub.net/api/v1/servers/q4" npm start
+```
+
+That's the whole setup. You should see:
+
+```
+[master] listening on UDP 27650
+[seeds] 19 address(es) from https://quakehub.net/api/v1/servers/q4
+[master] 19 server(s) verified
+```
+
+Confirm it's serving them:
+
+```bash
+npm run list
+# 127.0.0.1:27650 -> 19 server(s)
+```
+
+### With systemd
+
+Add the variable to the unit file from [Hosting a master](#hosting-a-master):
+
+```ini
+[Service]
+Environment=Q4MASTER_SEEDS_URL=https://quakehub.net/api/v1/servers/q4
+ExecStart=/usr/bin/node /opt/quakehub-q4master/src/index.js
+```
+
+Then `sudo systemctl daemon-reload && sudo systemctl restart quakehub-q4master`.
+
+### With Docker
+
+```bash
+docker run -p 27650:27650/udp \
+  -e Q4MASTER_SEEDS_URL="https://quakehub.net/api/v1/servers/q4" \
+  quakehub-q4master
+```
+
+### What URL should I use?
+
+Any URL you trust. The parser accepts every common server-list shape, so most existing feeds
+work without modification:
+
+```jsonc
+["1.2.3.4:28004", "5.6.7.8:28004"]                       // plain list
+{"servers": ["1.2.3.4:28004"]}                            // wrapped list
+[{"address": "se.example.net:28004"}]                     // qstat output.json
+{"servers": [{"ip": "1.2.3.4", "port": 28004}]}           // ip/port pairs
+```
+
+Two that exist today:
+
+| URL | What it is |
+| --- | --- |
+| `https://quakehub.net/api/v1/servers/q4` | Every Quake 4 server quakehub knows about, each verified within the last 90 seconds. Free, no key. |
+| `https://quake4.net/qstat/output.json` | One operator's Q4Max fleet, regenerated on a ~60s cron. |
+
+**This is deliberately not hardcoded to any project, including quakehub.** A master whose seed
+list could only come from one website would recreate exactly the single point of failure this
+repository exists to remove. Use quakehub, use your own list on your own web server, use
+nothing. The bundled `seeds.json` works standalone forever.
+
+### What happens when the seed source goes down
+
+Nothing bad, by design:
+
+- Remote addresses are kept **separately** from the bundled ones and are **added** to them,
+  never substituted. Losing the URL can never cost you `seeds.json`.
+- A failed fetch keeps the **last successful list**. The master logs it and carries on probing
+  everything it already knew about.
+- A `200 OK` with an empty list is **ignored**, not obeyed. That is far more likely to be a bug
+  at the other end than a genuine claim that no servers exist.
+- A response with thousands of entries is capped at 500, so a broken or hostile endpoint cannot
+  flood the probe loop.
+
+The worst case is that your list goes slightly stale. It cannot go empty.
 
 ---
 

@@ -40,9 +40,27 @@ export class Registry {
     this.probe = probe;
     this.now = now;
     this.resolve = resolve;
-    this.seeds = new Set(seeds);
+    // Static seeds come from seeds.json or Q4MASTER_SEEDS and never change while we run.
+    // Remote seeds come from Q4MASTER_SEEDS_URL and are replaced wholesale on each successful
+    // fetch. They are kept apart so a failed fetch leaves the static list untouched — the seed
+    // list must never shrink because someone else's web server had a bad minute.
+    this.staticSeeds = new Set(seeds);
+    this.remoteSeeds = new Set();
     /** @type {Map<string, {ip:string, port:number, lastSeen:number, fsGame:string, name:string}>} */
     this.servers = new Map();
+  }
+
+  /** Every address we will probe: the bundled list plus whatever the remote source last gave us. */
+  get seeds() {
+    return new Set([...this.staticSeeds, ...this.remoteSeeds]);
+  }
+
+  /**
+   * Replace the remote seed list. Called only after a *successful* fetch; a failure leaves the
+   * previous list in place, so a flaky endpoint degrades to "slightly stale" rather than "empty".
+   */
+  setRemoteSeeds(list) {
+    this.remoteSeeds = new Set(list);
   }
 
   /** A server said hello. Probe it; list it only if it answers. */

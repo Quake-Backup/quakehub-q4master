@@ -6,6 +6,7 @@ import {
   isInfoResponse, parseInfoResponse, DEFAULT_PORT,
 } from './protocol.js';
 import { Registry } from './registry.js';
+import { fetchSeeds } from './seed-source.js';
 
 /**
  * Send a getInfo to a server and resolve its info dict, or null if it doesn't answer.
@@ -33,14 +34,33 @@ export function probeServer(ip, port, timeoutMs = 2500) {
 export function createMaster({
   port = DEFAULT_PORT,
   seeds = [],
+  seedsUrl = null,
   strictGameFilter = false,
   probe = probeServer,
+  fetchSeedsImpl = fetchSeeds,
   log = console.log,
   ...registryOpts
 } = {}) {
   const registry = new Registry({ probe, seeds, ...registryOpts });
   const sock = dgram.createSocket('udp4');
   let sweepTimer = null;
+
+  // Refresh the remote seed list, if one is configured. Never throws: a seed source that is
+  // down must not stop us probing everything we already know about.
+  async function refreshRemoteSeeds() {
+    if (!seedsUrl) return;
+    try {
+      const list = await fetchSeedsImpl(seedsUrl);
+      if (!list.length) {
+        log(`[seeds] ${seedsUrl} returned no usable addresses; keeping the previous ${registry.remoteSeeds.size}`);
+        return;
+      }
+      registry.setRemoteSeeds(list);
+      log(`[seeds] ${list.length} address(es) from ${seedsUrl}`);
+    } catch (err) {
+      log(`[seeds] ${seedsUrl}: ${err.message} (keeping the previous ${registry.remoteSeeds.size})`);
+    }
+  }
 
   sock.on('message', (msg, from) => {
     const parsed = parseCommand(msg);
@@ -78,10 +98,13 @@ export function createMaster({
       log(`[master] listening on UDP ${sock.address().port}`);
       // Probe everything once at boot so the first client to ask gets a real list, then keep
       // it fresh. unref so the timer alone never holds the process open.
+      await refreshRemoteSeeds();
       await registry.sweep();
       log(`[master] ${registry.size} server(s) verified`);
       sweepTimer = setInterval(() => {
-        registry.sweep().then(() => log(`[master] ${registry.size} server(s) verified`));
+        refreshRemoteSeeds()
+          .then(() => registry.sweep())
+          .then(() => log(`[master] ${registry.size} server(s) verified`));
       }, registry.opts.sweepMs);
       sweepTimer.unref?.();
       return this;
