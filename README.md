@@ -162,9 +162,52 @@ configured to heartbeat anyone. Ask whoever runs the master to add your address,
 
 ---
 
-## Hosting a master
+## Hosting a master, step by step
 
-The service needs **inbound UDP on port 27650** and outbound UDP so it can probe servers.
+Complete walkthrough on a fresh Ubuntu/Debian box. Takes about fifteen minutes. You need a
+machine with a public IP (any $5 VPS is plenty, this uses almost no CPU or memory) and a domain
+you can add a DNS record to.
+
+### 1. Install Node
+
+```bash
+sudo apt update
+sudo apt install -y nodejs npm git
+node --version    # must be v18 or newer
+```
+
+If your distro ships something older than v18, use [NodeSource](https://github.com/nodesource/distributions)
+or [nvm](https://github.com/nvm-sh/nvm) instead.
+
+### 2. Get the code
+
+```bash
+sudo git clone https://github.com/booskibro/quakehub-q4master /opt/quakehub-q4master
+cd /opt/quakehub-q4master
+```
+
+There is nothing to install or build. No `npm install`, no dependencies.
+
+### 3. Check it runs
+
+```bash
+sudo node src/index.js
+```
+
+You should see something like:
+
+```
+[master] listening on UDP 27650
+[master] 19 server(s) verified
+```
+
+If you see `EACCES`, you're not root and the port is privileged; use `sudo`, or pick a high port
+with `Q4MASTER_PORT`. Press `Ctrl+C` to stop it for now.
+
+### 4. Open the firewall
+
+The service needs **inbound UDP 27650** so clients can reach it, and **outbound UDP** so it can
+probe game servers.
 
 ```bash
 # Ubuntu/Debian
@@ -174,15 +217,37 @@ sudo ufw allow 27650/udp
 sudo firewall-cmd --add-port=27650/udp --permanent && sudo firewall-cmd --reload
 ```
 
-If it's behind NAT or a cloud provider, open 27650/udp in the provider's firewall or security
-group too. Note that Cloudflare and most reverse proxies **cannot** proxy UDP, so the hostname
-you give players must resolve directly to the machine. A DNS A record pointing at the box is
-the whole setup.
+**If you're on a cloud provider, that is not enough.** AWS, GCP, Azure, Oracle, Vultr and
+friends have their own firewall in front of the machine. Open 27650/UDP in the provider's
+security group or firewall rules as well. This is the single most common reason a master looks
+dead from outside while working perfectly on the box.
 
-Keeping it running with systemd:
+### 5. Point a hostname at it
+
+Add a DNS **A record** for the machine's public IPv4 address:
+
+```
+Type   Name      Value
+A      master    203.0.113.10
+```
+
+giving you `master.yourdomain.net`. That's the address players will use.
+
+> **Do not put it behind Cloudflare's proxy** (the orange cloud), or any reverse proxy.
+> Cloudflare does not proxy UDP, so the hostname must resolve straight to your machine. Set the
+> record to "DNS only" (grey cloud).
+
+Check it resolves to the right place:
+
+```bash
+dig +short master.yourdomain.net
+```
+
+### 6. Run it permanently
+
+Create `/etc/systemd/system/quakehub-q4master.service`:
 
 ```ini
-# /etc/systemd/system/quakehub-q4master.service
 [Unit]
 Description=quakehub-q4master
 After=network.target
@@ -191,20 +256,57 @@ After=network.target
 ExecStart=/usr/bin/node /opt/quakehub-q4master/src/index.js
 Restart=always
 User=nobody
+# Optional: track a live server list instead of the bundled snapshot.
+# See "Keeping the list current" below.
+Environment=Q4MASTER_SEEDS_URL=https://quakehub.net/api/v1/servers/q4
 
 [Install]
 WantedBy=multi-user.target
 ```
 
+`nobody` cannot bind port 27650 (anything under 1024 is privileged, but 27650 is not, so this is
+fine). Then:
+
 ```bash
+sudo systemctl daemon-reload
 sudo systemctl enable --now quakehub-q4master
 sudo systemctl status quakehub-q4master
+journalctl -u quakehub-q4master -f     # watch it work
 ```
 
-Verify from another machine:
+### 7. Verify from somewhere else
+
+This is the step people skip, and it's the one that catches the cloud-firewall problem. From a
+**different** machine, not the one running it:
 
 ```bash
-node tools/query.js your-master.example.net
+git clone https://github.com/booskibro/quakehub-q4master
+cd quakehub-q4master
+node tools/query.js master.yourdomain.net
+```
+
+```
+master.yourdomain.net:27650 -> 19 server(s)
+  66.55.137.189:28004
+  ...
+```
+
+If that works from another network, it will work for players. If it prints nothing here but the
+service log on the box looks healthy, it is a firewall between you and it, almost always the
+cloud provider's, see step 4.
+
+### 8. Tell people the address
+
+Players add one line to `autoexec.cfg` (see [For players](#for-players-retail-or-gog-quake-4)):
+
+```
+seta net_master0 "master.yourdomain.net"
+```
+
+Server operators can optionally add:
+
+```
+seta net_master1 "master.yourdomain.net:27650"
 ```
 
 ---
@@ -313,7 +415,7 @@ npm run list
 
 ### With systemd
 
-Add the variable to the unit file from [Hosting a master](#hosting-a-master):
+Add the variable to the unit file from [step 6](#6-run-it-permanently):
 
 ```ini
 [Service]
