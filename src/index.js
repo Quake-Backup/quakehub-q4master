@@ -5,6 +5,8 @@
 //   Q4MASTER_SEEDS_FILE    path to a JSON file like seeds.json (default ./seeds.json)
 //   Q4MASTER_SEEDS_URL     optional HTTP list, re-fetched every sweep and ADDED to the above
 //   Q4MASTER_STRICT_GAME   "1" to honour the client's fs_game filter (see below)
+//   Q4MASTER_HTTP_PORT     serve the info page on this TCP port (e.g. 80); off unless set
+//   Q4MASTER_HOSTNAME      your public hostname, shown in the info page's copy-paste examples
 //   Q4MASTER_QUIET         "1" to suppress per-request logging
 //
 // On fs_game filtering: the retail master filtered the list by the mod the client was running.
@@ -16,6 +18,7 @@
 
 import { readFileSync } from 'node:fs';
 import { createMaster } from './master.js';
+import { startInfoPage } from './info-page.js';
 import { DEFAULT_PORT } from './protocol.js';
 
 function loadSeeds() {
@@ -46,6 +49,19 @@ const master = createMaster({
 });
 
 await master.start();
+
+// Anyone you give the hostname to will end up clicking it, because every chat client turns it
+// into a link. Serving one page beats a browser hanging until it times out.
+const httpPort = Number(process.env.Q4MASTER_HTTP_PORT) || 0;
+if (httpPort) {
+  startInfoPage({
+    port: httpPort,
+    host: process.env.Q4MASTER_HOSTNAME || 'this master',
+    masterPort: Number(process.env.Q4MASTER_PORT) || DEFAULT_PORT,
+    registry: master.registry,
+    log: quiet ? () => {} : console.log,
+  });
+}
 
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.on(signal, () => {

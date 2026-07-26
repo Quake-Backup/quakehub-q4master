@@ -398,7 +398,28 @@ All environment variables, all optional.
 | `Q4MASTER_SEEDS_FILE` | `./seeds.json` | Path to a seed list |
 | `Q4MASTER_SEEDS_URL` | off | HTTP list re-fetched every sweep, **added** to the above. See [Keeping the list current](#keeping-the-list-current) |
 | `Q4MASTER_STRICT_GAME` | off | Filter the reply by the client's `fs_game` |
+| `Q4MASTER_HTTP_PORT` | off | Serve the [info page](#the-info-page) on this TCP port, e.g. `80` |
+| `Q4MASTER_HOSTNAME` | - | Your public hostname, used in the info page's copy-paste examples |
 | `Q4MASTER_QUIET` | off | Suppress per-request logging |
+
+### The info page
+
+A master is a UDP service, so its hostname isn't a website. But the moment you tell anyone the
+address, Twitter, Discord and every chat client turn it into a clickable link, and people click
+it. With nothing listening on port 80 the browser hangs until it times out and then says "site
+can't be reached", which reads as broken rather than as "this isn't a web address".
+
+Set `Q4MASTER_HTTP_PORT=80` and a visitor gets one page instead: what the hostname is, the
+`autoexec.cfg` line to paste, how many servers are listed right now, and a link to this repo so
+they can run their own. `/servers.json` on the same port returns the list machine-readably.
+
+```bash
+Q4MASTER_HTTP_PORT=80 Q4MASTER_HOSTNAME=master.example.net npm start
+sudo ufw allow 80/tcp
+```
+
+Binding port 80 needs root on Linux, which is why it's off by default. If it can't bind, it logs
+and carries on: the UDP master never depends on it.
 
 Seeds may be `ip:port` or `hostname:port`. Hostnames are re-resolved on every sweep, because
 several surviving Quake 4 servers sit behind dynamic DNS and move.
