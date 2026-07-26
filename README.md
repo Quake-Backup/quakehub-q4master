@@ -2,15 +2,33 @@
 
 An open-source master server for idTech4 games: **Quake 4**, Doom 3 and Prey.
 
-Quake 4 has no working master server. id's shut down years ago, the community replacement
+Quake 4 had no working master server. id's shut down years ago, the community replacement
 (`q4masterserver.baseq.fr`) went with whoever ran it, and the one person known to have a working
-implementation has said he won't publish the source. So the in-game server browser is empty for
+implementation has said he won't publish the source. So the in-game server browser was empty for
 everyone, and every Quake 4 server list that exists is maintained by hand in someone's text file.
 
 This is that missing piece, MIT licensed, so nobody has to ask permission to run one.
 
-It is about 300 lines. The protocol is documented in full below, so even if this repository
-disappears, anyone can rebuild it from these notes.
+---
+
+## Just want your server browser to work?
+
+**There is a public instance running. Put this one line in your `autoexec.cfg`:**
+
+```
+seta net_master0 "master.quakehub.net"
+```
+
+Start Quake 4, go to **Multiplayer → Internet**, and the list fills up. Full instructions with
+file paths are in [For players](#for-players-retail-or-gog-quake-4).
+
+Run by [quakehub.net](https://quakehub.net), free, no account, nothing to install. It tracks
+quakehub's live Quake 4 list, so every server on it was verified within the last few minutes.
+
+**You are not required to use it, and you shouldn't have to trust it.** That's the entire point
+of this repository being open: [stand up your own](#hosting-a-master-step-by-step) in about
+fifteen minutes, point it wherever you like, and tell people to use yours instead. A community
+that depends on one box is exactly the problem this was written to fix.
 
 ---
 
@@ -90,11 +108,11 @@ If you launch with a mod such as Q4Max (`+set fs_game q4max`), use that mod's fo
 hasn't named it `autoexec.cfg.txt`), containing one line:
 
 ```
-seta net_master0 "master.example.net"
+seta net_master0 "master.quakehub.net"
 ```
 
-Replace `master.example.net` with the address of the master you're using. If it runs on a
-non-standard port, write `"master.example.net:27650"`.
+That's the public instance. Swap in your own hostname if you're running one, and add `:27650`
+if it listens on a non-standard port.
 
 **3. Start Quake 4 and go to Multiplayer → Internet.** The list should populate. If it doesn't,
 see [Troubleshooting](#troubleshooting).
@@ -146,27 +164,36 @@ this repo is a ~40-line example of asking a master for its list.
 Add this to your server config:
 
 ```
-seta net_master1 "master.example.net:27650"
+seta net_master1 "master.quakehub.net:27650"
 ```
 
 Your server then announces itself every 5 minutes and appears in the list automatically, as long
 as it answers a `getInfo` probe from the master.
 
 Use slot **1** or higher here, not 0. The *server* side does loop over all five slots
-(`AsyncServer.cpp`), so you can advertise to several masters at once without giving up your
-existing one. Slot 0 is your own client-side setting.
+(`AsyncServer.cpp`), so you can advertise to several masters at once without giving up any of
+them. Add a second master on `net_master2`, a third on `net_master3`, and you are listed
+everywhere at once. Slot 0 is your own client-side setting, leave it for that.
 
 **You do not have to do this to be listed.** The master also probes its seed list directly,
 which is how it works at all for the surviving Quake 4 servers, essentially none of which are
-configured to heartbeat anyone. Ask whoever runs the master to add your address, or run your own.
+configured to heartbeat anyone. The public instance tracks
+[quakehub.net](https://quakehub.net)'s Quake 4 list, so if your server shows up there it is
+already being served.
 
 ---
 
 ## Hosting a master, step by step
 
+**Please do run your own.** One master serving everyone is the failure mode that got Quake 4
+here in the first place: `q4masterserver.baseq.fr` worked until it didn't, and nobody could
+replace it. Several independent masters, each listed by operators on `net_master1` through
+`net_master4`, is a scene that survives any one of them going away.
+
 Complete walkthrough on a fresh Ubuntu/Debian box. Takes about fifteen minutes. You need a
-machine with a public IP (any $5 VPS is plenty, this uses almost no CPU or memory) and a domain
-you can add a DNS record to.
+machine with a public IP and a domain you can add a DNS record to. It is very light: the public
+instance idles at **28 MB of RAM** and negligible CPU, so it sits happily on a box already
+running game servers.
 
 ### 1. Install Node
 
@@ -318,7 +345,7 @@ seta net_master1 "master.yourdomain.net:27650"
 Check the master is answering at all, from the same machine you're playing on:
 
 ```bash
-node tools/query.js your-master.example.net
+node tools/query.js master.quakehub.net     # or your own master's hostname
 ```
 
 - If that prints servers but the game shows none, the game isn't reading your setting. Confirm
