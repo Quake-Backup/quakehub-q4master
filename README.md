@@ -2,10 +2,12 @@
 
 An open-source master server for idTech4 games: **Quake 4**, Doom 3 and Prey.
 
-Quake 4 had no working master server. id's shut down years ago, the community replacement
-(`q4masterserver.baseq.fr`) went with whoever ran it, and the one person known to have a working
-implementation has said he won't publish the source. So the in-game server browser was empty for
-everyone, and every Quake 4 server list that exists is maintained by hand in someone's text file.
+Quake 4 had no working master server. id's `q4master.idsoftware.com` still resolves but answers
+nothing, and had already stopped working by January 2022, which is when someone built
+`q4masterserver.baseq.fr` to replace it. That one is NXDOMAIN now too. The other person known to
+have a working implementation has said he won't publish the source. So out of the box the
+in-game server browser is empty, and every Quake 4 server list that exists is maintained by hand
+in someone's text file.
 
 This is that missing piece, MIT licensed, so nobody has to ask permission to run one.
 
