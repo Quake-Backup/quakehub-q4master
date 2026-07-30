@@ -2,12 +2,23 @@
 
 An open-source master server for idTech4 games: **Quake 4**, Doom 3 and Prey.
 
-Quake 4 had no working master server. id's `q4master.idsoftware.com` still resolves but answers
-nothing, and had already stopped working by January 2022, which is when someone built
-`q4masterserver.baseq.fr` to replace it. That one is NXDOMAIN now too. The other person known to
-have a working implementation has said he won't publish the source. So out of the box the
-in-game server browser is empty, and every Quake 4 server list that exists is maintained by hand
-in someone's text file.
+Quake 4 had no working master server. id's `q4master.idsoftware.com` still resolves and still
+answers, but it no longer serves the server **list**. (It does still handle client
+**authorisation** - see [below](#it-also-has-to-carry-authorisation-and-that-is-not-optional).
+An earlier version of this README said it "answers nothing", which was wrong and mattered.)
+
+**When the list stopped is not settled.** This README used to say it had stopped by January 2022,
+which is when someone built `q4masterserver.baseq.fr` to replace it. A server operator who was
+using a working list reports it still working as recently as **19 July 2026**, and id's host moved
+from `198.20.216.53` to `198.20.216.37` on **30 July 2026**, so there has been recent churn there.
+Those two accounts may both be right if the 2026 one was pointed at the community master rather
+than id's. We do not know, and rather than pick a winner: as of 30 July 2026 a `getServers` to
+id's host goes unanswered while auth through it works. That is the situation this project
+addresses, and the list may yet come back.
+
+`q4masterserver.baseq.fr` is NXDOMAIN. The other person known to have a working implementation has
+said he won't publish the source. So out of the box the in-game server browser is empty, and every
+Quake 4 server list that exists is maintained by hand in someone's text file.
 
 This is that missing piece, MIT licensed, so nobody has to ask permission to run one.
 
