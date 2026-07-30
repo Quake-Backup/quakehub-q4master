@@ -45,6 +45,37 @@ each of those servers itself to get the map, player count and ping.
 The visible result: **the in-game Multiplayer → Internet server browser fills up instead of
 being empty.**
 
+### It also has to carry authorisation, and that is not optional
+
+`q4master.idsoftware.com:27650` serves **two** things, and only one of them died:
+
+| | Status | Who needs it |
+| --- | --- | --- |
+| **Server list** | Dead for years. Returns nothing. | Anyone wanting a populated in-game browser |
+| **Client authorisation** | **Still alive and required to play** | Everyone, every time a GUID needs renewing |
+
+A master that answers `getServers` and ignores everything else therefore **fixes the browser and
+silently breaks the ability to connect**. The failure is delayed and looks unrelated: a client
+keeps working on the GUID it already has, and only when that needs renewing does it sit on
+"waiting for authorisation" and then fail with **"Client unknown to auth"** - on *every* server,
+not just yours. Blanking `net_master0` does not undo it either, because no master at all fails
+identically to a silent one.
+
+This happened. A player in Germany lost the ability to play for two days after pointing
+`net_master0` here, and it took a long time to identify because the browser was working
+perfectly the whole time.
+
+**So this master relays.** Anything that is not a server-list request or a heartbeat is forwarded
+verbatim to `q4master.idsoftware.com:27650` and the reply is passed back over the same socket the
+client wrote to. Lists come from us, authorisation comes from id. `test/upstream.test.js` pins
+this so the drop cannot come back.
+
+If you fork this or write your own, **that relay is the part you must not skip.** Serving lists is
+the easy half.
+
+> **Never hardcode id's IP.** It resolves to `198.20.216.37` today and was `198.20.216.53` until
+> 30 July 2026. Use the hostname so a move like that costs you nothing.
+
 ### Who this helps
 
 | | Does it help? | What you do |
@@ -59,6 +90,8 @@ being empty.**
 - It does not patch, modify or replace your game. It's a separate service on a server somewhere.
 - It does not make old servers work again, or fix Quake 4's file-download problems.
 - It does not host games. It only tells clients where games are.
+- It does not replace id's authorisation. It forwards it there. If id's master ever goes
+  down for real, nobody can play Quake 4 online and no master can fix that.
 - It is not required for anyone to play. Connecting directly with `connect ip:port` has always
   worked and still does. This just means you don't have to know the IP in advance.
 
