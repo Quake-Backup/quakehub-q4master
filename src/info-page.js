@@ -43,12 +43,18 @@ function page({ host, port, serverCount, repo }) {
   <span class="live">${serverCount} server${serverCount === 1 ? '' : 's'} listed right now</span>
 
   <h2>If you play Quake 4</h2>
-  <p>Quake 4's official master server has been dead since 2022, which is why
+    <p>Quake 4&rsquo;s official master server no longer serves a server list, which is why
      <b>Multiplayer &rarr; Internet</b> shows an empty list. Point the game here instead.</p>
   <p>Create a file called <code>autoexec.cfg</code> in your <code>q4base</code> folder
      (Steam: <code>steamapps/common/Quake 4/q4base</code>) containing one line:</p>
   <pre>seta net_master0 <b>"${esc(addr)}"</b></pre>
   <p>Start the game, open <b>Multiplayer &rarr; Internet</b>, and the list fills up.</p>
+    <p>Slot <b>0</b> carries your client&rsquo;s authorisation as well as the server list, so a
+       master that only serves listings would leave you unable to connect anywhere. This one
+       forwards that traffic straight to id&rsquo;s master, untouched, and logs only the command
+       name and source address. If you run your own instance, make sure it does the same:
+       versions before 30 July 2026 did not, and that silently broke players a couple of days
+       later when their GUID needed renewing.</p>
 
   <h2>If you run a Quake 4 server</h2>
   <p>Add this to your server config and it will list itself automatically:</p>
