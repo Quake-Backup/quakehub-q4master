@@ -7,6 +7,7 @@ import {
 } from './protocol.js';
 import { Registry } from './registry.js';
 import { fetchSeeds } from './seed-source.js';
+import { createUpstreamProxy, ID_MASTER_HOST, ID_MASTER_PORT } from './upstream.js';
 
 /**
  * Send a getInfo to a server and resolve its info dict, or null if it doesn't answer.
@@ -39,11 +40,20 @@ export function createMaster({
   probe = probeServer,
   fetchSeedsImpl = fetchSeeds,
   log = console.log,
+  // Relay anything we do not serve ourselves to id's master, which still handles client auth.
+  // Set upstreamHost to '' to switch it off and go back to dropping - only sensible if you are
+  // certain none of your users put you in net_master0.
+  upstreamHost = ID_MASTER_HOST,
+  upstreamPort = ID_MASTER_PORT,
+  upstreamImpl = null,
   ...registryOpts
 } = {}) {
   const registry = new Registry({ probe, seeds, ...registryOpts });
   const sock = dgram.createSocket('udp4');
   let sweepTimer = null;
+  const upstream = upstreamHost
+    ? (upstreamImpl || createUpstreamProxy({ host: upstreamHost, port: upstreamPort, log }))
+    : null;
 
   // Refresh the remote seed list, if one is configured. Never throws: a seed source that is
   // down must not stop us probing everything we already know about.
@@ -84,7 +94,15 @@ export function createMaster({
       return;
     }
 
-    // getInfo arrives if someone points a server browser straight at us. Nothing to say.
+    // EVERYTHING ELSE GOES UPSTREAM. This used to be a silent drop, and that drop is what broke
+    // authorisation for anyone who put us in net_master0: id's master serves both the (dead)
+    // server list and the (still very much alive) client auth on the same host and port, so
+    // answering getServers and ignoring the rest fixed the browser and quietly removed auth.
+    // See upstream.js for the full account.
+    if (upstream) {
+      log(`[upstream] ${parsed.command || 'unknown'} from ${from.address}:${from.port} -> ${upstreamHost}`);
+      upstream.forward(msg, from, (replyMsg) => sock.send(replyMsg, from.port, from.address));
+    }
   });
 
   return {
@@ -96,6 +114,9 @@ export function createMaster({
         sock.bind(port, () => { sock.removeListener('error', reject); resolve(); });
       });
       log(`[master] listening on UDP ${sock.address().port}`);
+      log(upstream
+        ? `[master] relaying non-list traffic to ${upstreamHost}:${upstreamPort} (this is what keeps auth working)`
+        : '[master] upstream relay DISABLED - clients using net_master0 will not be able to authorise');
       // Probe everything once at boot so the first client to ask gets a real list, then keep
       // it fresh. unref so the timer alone never holds the process open.
       await refreshRemoteSeeds();
