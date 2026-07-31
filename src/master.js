@@ -132,6 +132,7 @@ export function createMaster({
     },
     async stop() {
       if (sweepTimer) clearInterval(sweepTimer);
+      upstream?.close?.(); // session sockets and the idle sweeper go down with us
       await new Promise((resolve) => sock.close(resolve));
     },
   };

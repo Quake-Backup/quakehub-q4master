@@ -101,8 +101,85 @@ test('it defaults to id\'s master, on the port that still serves auth', () => {
 
 test('a flood cannot open unbounded sockets', async () => {
   // Dropping under pressure is acceptable: it is exactly what we did before the relay existed.
-  const proxy = createUpstreamProxy({ maxInFlight: 2, log: quiet, sendImpl: () => {} });
-  const from = { address: '198.51.100.7', port: 1234 };
-  for (let i = 0; i < 10; i += 1) proxy.forward(packet('getAuthKey', 'x'), from, () => {});
-  assert.equal(proxy.inFlight, 2, 'capped at maxInFlight');
+  // Sessions are per CLIENT, so the flood has to come from many addresses to test the cap -
+  // ten packets from one client is one session, and rightly so.
+  const proxy = createUpstreamProxy({ maxSessions: 2, log: quiet, sendImpl: () => {} });
+  try {
+    for (let i = 0; i < 10; i += 1) {
+      proxy.forward(packet('getAuthKey', 'x'), { address: `198.51.100.${i}`, port: 1234 }, () => {});
+    }
+    assert.equal(proxy.sessionCount, 2, 'capped at maxSessions');
+  } finally { proxy.close(); }
+});
+
+test('a client keeps ONE upstream socket across its whole auth conversation', async () => {
+  // The CD-key exchange is challenge/response over several datagrams, and id's auth server
+  // tracks it by source address:port. A new socket per packet made round two look like a
+  // stranger - id denied, and an explicit deny makes the engine WIPE the stored key. This is
+  // the "cd key is reset each time I run a map" report, and it must never come back.
+  const sent = [];
+  const proxy = createUpstreamProxy({ log: quiet, sendImpl: (m) => sent.push(m) });
+  try {
+    const from = { address: '198.51.100.7', port: 27666 };
+    proxy.forward(packet('clAuth', 'round1'), from, () => {});
+    proxy.forward(packet('clAuth', 'round2'), from, () => {});
+    proxy.forward(packet('clAuth', 'round3'), from, () => {});
+    assert.equal(proxy.sessionCount, 1, 'one conversation, one session, one source port');
+    assert.equal(sent.length, 3, 'every round forwarded');
+
+    // A different client is a different conversation on its own socket.
+    proxy.forward(packet('clAuth', 'x'), { address: '198.51.100.8', port: 27666 }, () => {});
+    assert.equal(proxy.sessionCount, 2);
+  } finally { proxy.close(); }
+});
+
+test('one source port for the whole exchange, and every reply datagram relayed', async () => {
+  // The end-to-end shape of the fix, against a real loopback "id master": three auth rounds
+  // must arrive at the upstream FROM THE SAME PORT (id tracks the conversation by it), and a
+  // round answered with two datagrams must deliver both to the client (the verdict is often
+  // not the first reply - one-shot relaying delivered the challenge and then went deaf).
+  const seenPorts = [];
+  const fakeId = dgram.createSocket('udp4');
+  fakeId.on('message', (msg, rinfo) => {
+    seenPorts.push(rinfo.port);
+    fakeId.send(oob('challenge', Buffer.from('c', 'latin1')), rinfo.port, rinfo.address);
+    fakeId.send(oob('authKey', Buffer.from('ok', 'latin1')), rinfo.port, rinfo.address);
+  });
+  await new Promise((r) => fakeId.bind(0, '127.0.0.1', r));
+
+  const proxy = createUpstreamProxy({
+    host: '127.0.0.1', port: fakeId.address().port, log: quiet,
+  });
+  try {
+    const got = [];
+    const from = { address: '198.51.100.9', port: 27666 };
+    for (let round = 0; round < 3; round += 1) {
+      proxy.forward(packet('clAuth', `round${round}`), from, (msg) => got.push(msg.toString('latin1')));
+      await new Promise((r) => setTimeout(r, 120)); // let the round's replies land
+    }
+    assert.equal(seenPorts.length, 3, 'all three rounds reached the upstream');
+    assert.equal(new Set(seenPorts).size, 1,
+      'ONE source port across the conversation - a new port per round is the key-wipe bug');
+    assert.equal(got.length, 6, 'both reply datagrams of every round reached the client');
+    assert.match(got[0], /challenge/);
+    assert.match(got[1], /authKey/);
+  } finally {
+    proxy.close();
+    await new Promise((r) => fakeId.close(r));
+  }
+});
+
+test('idle sessions are reaped; an active conversation is not', async () => {
+  const proxy = createUpstreamProxy({ idleMs: 1000, log: quiet, sendImpl: () => {} });
+  try {
+    const t0 = Date.now();
+    proxy.forward(packet('clAuth', 'x'), { address: '198.51.100.7', port: 1 }, () => {});
+    proxy.forward(packet('clAuth', 'x'), { address: '198.51.100.8', port: 2 }, () => {});
+    assert.equal(proxy.sessionCount, 2);
+    proxy.sweep(t0 + 500);
+    assert.equal(proxy.sessionCount, 2, 'nothing idle yet');
+    proxy.forward(packet('clAuth', 'y'), { address: '198.51.100.8', port: 2 }, () => {}); // refreshes .8
+    proxy.sweep(Date.now() + 1001);
+    assert.ok(proxy.sessionCount <= 1, 'the idle session is gone');
+  } finally { proxy.close(); }
 });

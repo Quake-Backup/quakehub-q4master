@@ -81,8 +81,17 @@ verbatim to `q4master.idsoftware.com:27650` and the reply is passed back over th
 client wrote to. Lists come from us, authorisation comes from id. `test/upstream.test.js` pins
 this so the drop cannot come back.
 
+**And the relay must be a session, not a one-shot.** The CD-key exchange is a conversation -
+challenge, response, verdict, several datagrams each way - and id's auth server tracks it by the
+source address *and port* it arrives from. Forwarding each packet on a fresh socket makes every
+round look like a new stranger, id answers with a deny, and an explicit deny makes the engine
+**wipe the player's stored CD key** ("my cd key is reset each time I try to run a map or join a
+server" - reported within a day of a one-shot relay shipping here). Each client therefore keeps
+one upstream socket for its whole conversation, and every reply datagram is passed back, not just
+the first. Also pinned in `test/upstream.test.js`.
+
 If you fork this or write your own, **that relay is the part you must not skip.** Serving lists is
-the easy half.
+the easy half - and a request/response relay is not enough, because auth is not request/response.
 
 > **Never hardcode id's IP.** It resolves to `198.20.216.37` today and was `198.20.216.53` until
 > 30 July 2026. Use the hostname so a move like that costs you nothing.
